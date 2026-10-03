@@ -1,19 +1,21 @@
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from pathlib import Path
 
-from model_provider import ProviderConfig
+from dotenv import load_dotenv
+from model_provider import ProviderConfig, normalize_provider
 
 
 @dataclass
 class LabConfig:
-    """Student TODO: define the shared configuration for the lab.
+    """Cấu hình dùng chung cho bài lab.
 
-    Hints:
-    - Keep paths for the repo root, dataset directory, and state directory.
-    - Add compact-memory settings such as threshold and number of messages to keep.
-    - Add provider settings for `openai`, `custom`, `gemini`, `anthropic`, `ollama`, and `openrouter`.
+    Gợi ý:
+    - Lưu đường dẫn đến repo root, thư mục dataset và thư mục state.
+    - Thêm cấu hình compact memory như ngưỡng kích hoạt và số message cần giữ.
+    - Thêm cấu hình provider cho `openai`, `custom`, `gemini`, `anthropic`, `ollama` và `openrouter`.
     """
 
     base_dir: Path
@@ -26,27 +28,92 @@ class LabConfig:
 
 
 def load_config(base_dir: Path | None = None) -> LabConfig:
-    """Student TODO: load environment variables and return a LabConfig.
+    """Đọc các biến môi trường và trả về một `LabConfig`.
 
-    Pseudocode:
-    1. Resolve the repo root or default to the current file parent.
-    2. Optionally load values from `.env`.
-    3. Create `state/` if it does not exist.
-    4. Return a populated LabConfig instance.
+    Mã giả:
+    1. Xác định repo root; mặc định suy ra từ thư mục chứa file hiện tại.
+    2. Có thể đọc thêm các giá trị từ `.env`.
+    3. Tạo `state/` nếu thư mục chưa tồn tại.
+    4. Trả về một instance `LabConfig` đã có đầy đủ giá trị.
     """
 
     root = (base_dir or Path(__file__).resolve().parent.parent).resolve()
 
-    # TODO: read env vars for one of the supported providers.
-    # Example knobs:
-    # - LLM_PROVIDER / LLM_MODEL
-    # - OPENAI_API_KEY
-    # - GEMINI_API_KEY
-    # - ANTHROPIC_API_KEY
-    # - OLLAMA_BASE_URL
-    # - OPENROUTER_API_KEY
-    # - CUSTOM_BASE_URL / CUSTOM_API_KEY
-    # TODO: create `root / "state"`.
-    # TODO: choose sensible defaults for compact memory.
+    load_dotenv(root / ".env")
 
-    raise NotImplementedError("Students should implement load_config().")
+    def env_int(name: str, default: int, minimum: int = 1) -> int:
+        raw = os.getenv(name)
+        if raw is None:
+            return default
+        try:
+            value = int(raw)
+        except ValueError as exc:
+            raise ValueError(f"{name} phải là số nguyên, nhận được {raw!r}.") from exc
+        if value < minimum:
+            raise ValueError(f"{name} phải >= {minimum}, nhận được {value}.")
+        return value
+
+    def env_float(name: str, default: float) -> float:
+        raw = os.getenv(name)
+        if raw is None:
+            return default
+        try:
+            return float(raw)
+        except ValueError as exc:
+            raise ValueError(f"{name} phải là số, nhận được {raw!r}.") from exc
+
+    default_models = {
+        "openai": "gpt-4o-mini",
+        "custom": "gpt-4o-mini",
+        "gemini": "gemini-2.5-flash",
+        "anthropic": "claude-sonnet-4-5",
+        "ollama": "llama3.2",
+        "openrouter": "openai/gpt-4o-mini",
+    }
+
+    def make_provider(prefix: str, fallback: ProviderConfig | None = None) -> ProviderConfig:
+        provider = normalize_provider(
+            os.getenv(f"{prefix}_PROVIDER", fallback.provider if fallback else "openai")
+        )
+        api_keys = {
+            "openai": os.getenv("OPENAI_API_KEY"),
+            "custom": os.getenv("CUSTOM_API_KEY"),
+            "gemini": os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY"),
+            "anthropic": os.getenv("ANTHROPIC_API_KEY"),
+            "ollama": None,
+            "openrouter": os.getenv("OPENROUTER_API_KEY"),
+        }
+        base_urls = {
+            "custom": os.getenv("CUSTOM_BASE_URL"),
+            "ollama": os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
+            "openrouter": os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1"),
+        }
+        fallback_model = (
+            fallback.model_name
+            if fallback is not None and fallback.provider == provider
+            else default_models[provider]
+        )
+        return ProviderConfig(
+            provider=provider,
+            model_name=os.getenv(f"{prefix}_MODEL", fallback_model),
+            temperature=env_float(
+                f"{prefix}_TEMPERATURE", fallback.temperature if fallback else 0.0
+            ),
+            api_key=api_keys[provider],
+            base_url=base_urls.get(provider),
+        )
+
+    model = make_provider("LLM")
+    judge_model = make_provider("JUDGE", fallback=model)
+    state_dir = root / "state"
+    state_dir.mkdir(parents=True, exist_ok=True)
+
+    return LabConfig(
+        base_dir=root,
+        data_dir=root / "data",
+        state_dir=state_dir,
+        compact_threshold_tokens=env_int("COMPACT_THRESHOLD_TOKENS", 1_200),
+        compact_keep_messages=env_int("COMPACT_KEEP_MESSAGES", 4),
+        model=model,
+        judge_model=judge_model,
+    )

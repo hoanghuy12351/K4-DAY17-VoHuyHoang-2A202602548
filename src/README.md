@@ -1,19 +1,19 @@
-# Student Scaffold
+# Phiên bản bài lab đã hoàn thiện
 
-This `src/` folder is the student version of the lab.
+Thư mục `src/` chứa implementation offline xác định và tích hợp live provider tùy chọn.
 
-- It keeps the same high-level structure
-- The Python files are intentionally incomplete and contain pseudocode / TODOs
-- The benchmark structure should include: standard benchmark + long-context stress benchmark
-- The runtime should support these providers: `openai`, `custom`, `gemini`, `anthropic`, `ollama`, `openrouter`
+- Thư mục giữ nguyên cấu trúc cấp cao của bài lab
+- Các file Python đã hoàn thiện phần bắt buộc của rubric
+- Cấu trúc benchmark cần có: standard benchmark + long-context stress benchmark
+- Runtime cần hỗ trợ các provider: `openai`, `custom`, `gemini`, `anthropic`, `ollama`, `openrouter`
 
-Suggested flow:
+Luồng triển khai đã áp dụng:
 
-1. Start with `config.py`
-2. Implement `memory_store.py`
-3. Finish `agent_baseline.py`
-4. Finish `agent_advanced.py`
-5. Implement `benchmark.py`
-6. Make `test_agents.py` pass
+1. Bắt đầu với `config.py`
+2. Triển khai `memory_store.py`
+3. Hoàn thiện `agent_baseline.py`
+4. Hoàn thiện `agent_advanced.py`
+5. Triển khai `benchmark.py`
+6. Kiểm chứng hành vi trong `test_agents.py`
 
-Datasets are available at the repo root in `data/`.
+Các dataset nằm trong thư mục `data/` ở repo root.
